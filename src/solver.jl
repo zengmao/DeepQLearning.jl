@@ -140,8 +140,7 @@ function dqn_train!(solver::DeepQLearningSolver, env::AbstractEnv, policy::Abstr
         end
 
         if t%solver.target_update_freq == 0
-            weights = Flux.params(active_q)
-            Flux.loadparams!(target_q, weights)
+            Flux.loadmodel!(target_q, active_q)
         end
 
         if t % solver.eval_freq == 0
@@ -171,7 +170,7 @@ function dqn_train!(solver::DeepQLearningSolver, env::AbstractEnv, policy::Abstr
         if solver.verbose
             @printf("Restore model with eval reward %1.3f \n", saved_mean_reward)
             saved_model = BSON.load(joinpath(solver.logdir, "qnetwork.bson"))[:qnetwork]
-            Flux.loadparams!(getnetwork(policy), saved_model)
+            Flux.loadmodel!(getnetwork(policy), saved_model)
         end
     end
     return policy
@@ -289,7 +288,7 @@ end
 
 function save_model(solver::DeepQLearningSolver, active_q, scores_eval::Float64, saved_mean_reward::Float64, model_saved::Bool)
     if scores_eval >= saved_mean_reward
-        bson(joinpath(solver.logdir, "qnetwork.bson"), qnetwork=[w for w in Flux.params(active_q)])
+        bson(joinpath(solver.logdir, "qnetwork.bson"), qnetwork=active_q)
         if solver.verbose
             @printf("Saving new model with eval reward %1.3f \n", scores_eval)
         end
@@ -312,7 +311,7 @@ function restore_best_model(solver::DeepQLearningSolver, env::AbstractEnv)
     end
     policy = NNPolicy(env, active_q, collect(actions(env)), length(obs_dimensions(env)))
     weights = BSON.load(solver.logdir*"qnetwork.bson")[:qnetwork]
-    Flux.loadparams!(getnetwork(policy), weights)
+    Flux.loadmodel!(getnetwork(policy), weights)
     Flux.testmode!(getnetwork(policy))
     return policy
 end
