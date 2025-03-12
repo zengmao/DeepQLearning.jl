@@ -59,7 +59,7 @@ end
 returns the hidden states of all the recurrent layers of a model 
 """ 
 function hiddenstates(m)
-    return [l.state for l in m if l isa Flux.Recur]
+    return []
 end
 
 """
@@ -69,13 +69,6 @@ to what is in the list.
 The order of the list should match the order of the recurrent layers in the model.
 """
 function sethiddenstates!(m, hs)
-    i = 1
-    for l in m
-        if isa(l, Flux.Recur) 
-            l.state = hs[i]
-            i += 1
-        end
-    end
 end
 
 obs_dimensions(env::AbstractEnv) = size(observe(env))

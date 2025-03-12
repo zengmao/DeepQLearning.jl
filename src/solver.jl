@@ -7,7 +7,7 @@
     train_freq::Int64 = 4
     eval_freq::Int64 = 500
     target_update_freq::Int64 = 500
-    num_ep_eval::Int64 = 100
+    num_ep_eval::Int64 = 2
     double_q::Bool = true
     dueling::Bool = true
     recurrence::Bool = false
@@ -20,9 +20,9 @@
     buffer_size::Int64 = 1000
     max_episode_length::Int64 = 100
     train_start::Int64 = 200
-    rng::AbstractRNG = MersenneTwister(0)
+    rng::AbstractRNG = Random.default_rng()
     logdir::Union{Nothing, String} = "log/"
-    save_freq::Int64 = 3000
+    save_freq::Int64 = 1000
     log_freq::Int64 = 100
     verbose::Bool = true
 end
@@ -42,16 +42,16 @@ function POMDPs.solve(solver::DeepQLearningSolver, env::AbstractEnv)
     action_indices = Dict(a=>i for (i, a) in enumerate(action_map))
 
     # check reccurence
-    if isrecurrent(solver.qnetwork) && !solver.recurrence
-        throw("DeepQLearningError: you passed in a recurrent model but recurrence is set to false")
-    end
-    replay = initialize_replay_buffer(solver, env, action_indices)
+    # if isrecurrent(solver.qnetwork) && !solver.recurrence
+    #     throw("DeepQLearningError: you passed in a recurrent model but recurrence is set to false")
+    # end
     if solver.dueling
         active_q = create_dueling_network(solver.qnetwork)
     else
         active_q = solver.qnetwork
     end
     policy = NNPolicy(env, active_q, action_map, length(obs_dimensions(env)))
+    replay = initialize_replay_buffer(solver, env, action_indices, policy)
 
     return dqn_train!(solver, env, policy, replay)
 end
@@ -176,14 +176,14 @@ function dqn_train!(solver::DeepQLearningSolver, env::AbstractEnv, policy::Abstr
     return policy
 end
 
-function initialize_replay_buffer(solver::DeepQLearningSolver, env::AbstractEnv, action_indices)
+function initialize_replay_buffer(solver::DeepQLearningSolver, env::AbstractEnv, action_indices, policy)
     # init and populate replay buffer
     if solver.recurrence
         replay = EpisodeReplayBuffer(env, solver.buffer_size, solver.batch_size, solver.trace_length)
     else
         replay = PrioritizedReplayBuffer(env, solver.buffer_size, solver.batch_size)
     end
-    populate_replay_buffer!(replay, env, action_indices, max_pop=solver.train_start)
+    populate_replay_buffer!(replay, env, action_indices, max_pop=solver.train_start, policy=policy)
     return replay #XXX type unstable
 end
 
@@ -209,9 +209,9 @@ function batch_train!(solver::DeepQLearningSolver,
         qp_values = active_q(sp_batch)
         target_q_values = target_q(sp_batch)
         best_a = [CartesianIndex(argmax(qp_values[:, i]), i) for i=1:solver.batch_size]
-        q_sp_max = target_q_values[best_a]
+        q_sp_max = map(a -> a === -Inf32 ? 0 : a, target_q_values[best_a])
     else
-        q_sp_max = dropdims(maximum(target_q(sp_batch), dims=1), dims=1)
+        q_sp_max = map(a -> a === -Inf32 ? 0 : a, dropdims(maximum(target_q(sp_batch), dims=1), dims=1))
     end
     q_targets = r_batch .+ (1f0 .- done_batch) .* γ .* q_sp_max
 

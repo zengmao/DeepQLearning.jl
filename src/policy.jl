@@ -35,11 +35,17 @@ end
 
 actionmap(p::NNPolicy) = p.action_map
 
-function _action(policy::NNPolicy, o)
+function _action(policy::NNPolicy, o; random = false, rng = Random.default_rng())
     if ndims(o) == policy.n_input_dims
         obatch = reshape(o, (size(o)...,1))
         vals = policy.qnetwork(obatch)
-        return policy.action_map[argmax(vals)]
+        if !random
+            # println("we're here: b1")
+            return policy.action_map[argmax(vals)]
+        else
+            # println("We're here: b2")
+            return policy.action_map[rand(rng, filter(i->vals[i] != typemin(Float32), 1:length(policy.action_map)))]
+        end
     else 
         throw("NNPolicyError: was expecting an array with $(policy.n_input_dims) dimensions, got $(ndims(o))")
     end
@@ -63,9 +69,9 @@ function _value(policy::NNPolicy{P}, o::AbstractArray{T,N}) where {P,T<:Real,N}
     end
 end
 
-POMDPs.action(policy::NNPolicy, o) = _action(policy, o)
-POMDPs.action(policy::NNPolicy{P}, s) where {P <: MDP} = _action(policy, POMDPs.convert_s(Array{Float32}, s, policy.problem))
-POMDPs.action(policy::NNPolicy{P}, o) where {P <: POMDP} = _action(policy, POMDPs.convert_o(Array{Float32}, o, policy.problem))
+POMDPs.action(policy::NNPolicy, o; random = false) = _action(policy, o, random=random)
+POMDPs.action(policy::NNPolicy{P}, s; random = false) where {P <: MDP} = _action(policy, POMDPs.convert_s(Array{Float32}, s, policy.problem), random=random)
+POMDPs.action(policy::NNPolicy{P}, o; random = false) where {P <: POMDP} = _action(policy, POMDPs.convert_o(Array{Float32}, o, policy.problem), random=random)
 
 POMDPTools.actionvalues(policy::NNPolicy, o) = _actionvalues(policy, o)
 POMDPTools.actionvalues(policy::NNPolicy{P}, s) where {P<:MDP} = _actionvalues(policy, POMDPs.convert_s(Array{Float32}, s, policy.problem))

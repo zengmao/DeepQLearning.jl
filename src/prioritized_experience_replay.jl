@@ -106,14 +106,13 @@ end
 function populate_replay_buffer!(replay::PrioritizedReplayBuffer,
                                  env::AbstractEnv,
                                  action_indices;
-                                 max_pop::Int64=replay.max_size, max_steps::Int64=100,
-                                 policy::Policy = FunctionPolicy(o->rand(actions(env))))
+                                 max_pop::Int64=replay.max_size, max_steps::Int64=100, policy)
     reset!(env)
     o = observe(env)
     done = false
     step = 0
     for t=1:(max_pop - replay._curr_size)
-        a = action(policy, o)
+        a = action(policy, o, random=true)
         ai = action_indices[a]
         rew = act!(env, a)
         op = observe(env)
